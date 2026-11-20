@@ -1,0 +1,75 @@
+name: 🖥️ Free GitHub VPS - SSH + Tailscale
+
+on:
+  workflow_dispatch:
+    inputs:
+      session_hours:
+        description: '⏱️ Session Duration (hours)'
+        required: true
+        default: '6'
+        type: choice
+        options:
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+          - '5'
+          - '6'
+
+jobs:
+  vps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 359 # Max allowed is 360, keeping it at 359 prevents GitHub from hard-killing it
+
+    env:
+      VPS_USER:         ${{ secrets.VPS_USER     || 'luffy' }}
+      VPS_PASSWORD:     ${{ secrets.VPS_PASSWORD || 'luffy@123' }}
+      # This matches your screenshot exactly (no underscore)
+      TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }} 
+      VPS_HOSTNAME:     gh-vps-${{ github.run_id }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Maximize Build Space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: Run setup
+        run: |
+          chmod +x ./setup.sh ./verify.sh
+          ./setup.sh
+
+      - name: Run verify
+        run: ./verify.sh
+
+      - name: Display connection information
+        run: |
+          TS_IP=$(tailscale ip -4 2>/dev/null | head -n1 || echo "not-connected")
+          echo ""
+          echo "=================================================="
+          echo "🟢  VPS IS READY"
+          echo "=================================================="
+          echo "  Tailscale IP : $TS_IP"
+          echo "  Username     : $VPS_USER"
+          echo "  Password     : $VPS_PASSWORD"
+          echo "  Port         : 22"
+          echo ""
+          echo "  Connect with :"
+          echo "    ssh $VPS_USER@$TS_IP"
+          echo "=================================================="
+          echo ""
+
+      - name: Keep VPS Alive
+        run: |
+          echo "VPS is running. Do not cancel this job."
+          # Sleep for 6 hours (21,500 seconds) to keep the VPS online until the timeout limit.
+          sleep 21500
